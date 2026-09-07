@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "target": "ES6",
+    "module": "commonjs",
+    "checkJs": true
+  },
+  "include": ["types/*.d.ts", "**/*.js"],
+  "exclude": ["node_modules"]
+}
