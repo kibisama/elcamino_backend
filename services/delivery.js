@@ -19,22 +19,6 @@ const QR_DATA_FIELDS = /** @type {const} */ ([
 ]);
 
 /**
- * @param {string} invoiceCode
- * @param {string} date
- * @returns {string}
- */
-const getSessionKey = (invoiceCode, date) => `${invoiceCode}:${date}`;
-
-/**
- * @param {string} invoiceCode
- * @param {string} date
- * @param {string} session
- * @returns {string}
- */
-const getLogKey = (invoiceCode, date, session) =>
-  `${invoiceCode}:${date}:${session}`;
-
-/**
  * @param {string} dRxRxId
  * @param {string | undefined} [exStationId]
  * @param {string | undefined} [newStationId]
@@ -87,46 +71,6 @@ const delLogItemsCache = (stationId, items) => {
  * @property {string} due
  * @property {import("../constants").DeliveryLogStatus} status
  */
-
-/**
- * @param {string} invoiceCode
- * @param {NonNullable<dayjs.ConfigType>} date
- * @returns {Promise<string[]>}
- */
-const getSessions = async (invoiceCode, date) => {
-  const dateString = dayjs(date).format(DAYJS_LOG_DATE_FORMAT);
-  const key = getSessionKey(invoiceCode, dateString);
-  const cached = cache.getSessions(key);
-  if (cached) return cached;
-  const station = await getStationByCode(invoiceCode);
-  const logs = await deliveryLogRepo.findDeliveryLogs(station._id, dateString);
-  const sessions = logs.map((log) => log.session);
-  cache.setSessions(key, sessions);
-  return sessions;
-};
-exports.getSessions = getSessions;
-
-/**
- * @param {string} invoiceCode
- * @param {NonNullable<dayjs.ConfigType>} date
- * @param {string} session
- * @returns {Promise<string[]>}
- */
-const findLogDRxRxIds = async (invoiceCode, date, session) => {
-  const dateString = dayjs(date).format(DAYJS_LOG_DATE_FORMAT);
-  const key = getLogKey(invoiceCode, dateString, session);
-  const cached = cache.getLog(key);
-  if (cached) return cached;
-  const station = await getStationByCode(invoiceCode);
-  const log = await deliveryLogRepo.findDeliveryLog(
-    station._id,
-    dateString,
-    session,
-  );
-  const dRxRxIds = log.dRxes.map((rx) => rx._id.toString());
-  cache.setLog(key, dRxRxIds);
-  return dRxRxIds;
-};
 
 /**
  * @param {string} invoiceCode
@@ -213,14 +157,12 @@ exports.findItemsOnStage = async (invoiceCode) => {
 };
 
 /**
- * @param {string} invoiceCode
- * @param {NonNullable<dayjs.ConfigType>} date
- * @param {string} session
+ * @param {string | ObjectId} logId
  * @returns {Promise<DeliveryItem[]>}
  */
-exports.findLogItems = async (invoiceCode, date, session) => {
-  const dRxRxIds = await findLogDRxRxIds(invoiceCode, date, session);
-  return await findDeliveryItems(dRxRxIds);
+exports.findLogItems = async (logId) => {
+  const log = await deliveryLogRepo.findDeliveryLogById(logId);
+  return await findDeliveryItems(log.dRxes.map((id) => id.toString()));
 };
 
 /**
@@ -426,7 +368,6 @@ exports.createLog = async (invoiceCode, items) => {
     throw error;
   }
   delLogItemsCache(stationId, realItems);
-  cache.delSessions(getSessionKey(invoiceCode, date));
 
   //publish mq
   return log;

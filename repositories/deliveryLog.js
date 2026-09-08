@@ -20,6 +20,16 @@ exports.findDeliveryLog = async (deliveryStationId, date, session) => {
 };
 
 /**
+ * @param {ObjectId | string} id
+ * @returns {Promise<DeliveryLog.DeliveryLogLean>}
+ */
+exports.findDeliveryLogById = async (id) => {
+  const log = await DeliveryLog.findById(id).lean();
+  if (!log) throw E.deliveryLogNotFound();
+  return log;
+};
+
+/**
  * Returns an empty array if not found.
  * @param {ObjectId | string} [deliveryStationId]
  * @param {string} [date]

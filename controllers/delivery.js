@@ -40,13 +40,6 @@ exports.searchLogs = async (req, res) =>
 /**
  * @type {RequestHandler}
  */
-exports.getSessions = async (req, res) =>
-  //@ts-ignore
-  res.json(await delivery.getSessions(req.params.invoiceCode, req.query.date));
-
-/**
- * @type {RequestHandler}
- */
 exports.getItemsOnStage = async (req, res) =>
   //@ts-ignore
   res.json(await delivery.findItemsOnStage(req.params.invoiceCode));
@@ -58,8 +51,6 @@ exports.getLogItems = async (req, res) =>
   res.json(
     await delivery.findLogItems(
       //@ts-ignore
-      req.params.invoiceCode,
-      req.params.date,
-      req.params.session,
+      req.params.id,
     ),
   );

@@ -6,7 +6,6 @@ const {
   cancelDeliverySchema,
 } = require("../zod");
 
-router.get("/sessions/:invoiceCode", delivery.getSessions);
 router.post("/qr/:invoiceCode", delivery.upsertRxWithQr);
 router.patch(
   "/cancel/:id",
@@ -25,6 +24,6 @@ router.post(
   delivery.createLog,
 );
 router.get("/:invoiceCode", delivery.getItemsOnStage);
-router.get("/:invoiceCode/:date/:session", delivery.getLogItems);
+router.get("/logs/:id", delivery.getLogItems);
 
 module.exports = router;

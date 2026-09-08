@@ -43,16 +43,6 @@ class CacheManager {
      * @type {Map<string, string[]>}
      */
     this.onStage = new Map();
-    /**
-     * deliveryStation.invoiceCode:deliveryLog.date, deliveryLog.session[]
-     * @type {Map<string, string[]>}
-     */
-    this.sessions = new Map();
-    /**
-     * deliveryStation.invoiceCode:deliveryLog.date:deliveryLog.session, dRxRx._id[]
-     * @type {Map<string, string[]>}
-     */
-    this.logs = new Map();
   }
 
   /**
@@ -197,45 +187,6 @@ class CacheManager {
   }
   clearStages() {
     this.onStage.clear();
-  }
-
-  /**
-   * @param {string} key
-   * @returns {string[] | undefined}
-   */
-  getSessions(key) {
-    return this.sessions.get(key);
-  }
-  /**
-   * @param {string} key
-   * @param {string[]} sessions
-   */
-  setSessions(key, sessions) {
-    this.sessions.set(key, sessions);
-  }
-  /**
-   * @param {string} key
-   */
-  delSessions(key) {
-    this.sessions.delete(key);
-  }
-
-  /**
-   * @param {string} key
-   * @returns {string[] | undefined}
-   */
-  getLog(key) {
-    return this.logs.get(key);
-  }
-  /**
-   * @param {string} key
-   * @param {string[]} dRxRxIds
-   */
-  setLog(key, dRxRxIds) {
-    this.logs.set(key, dRxRxIds);
-  }
-  clearLogs() {
-    this.logs.clear();
   }
 }
 
