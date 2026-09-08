@@ -1,12 +1,9 @@
 const E = require("../utils/error");
 const dayjs = require("dayjs");
+dayjs.extend(require("dayjs/plugin/customParseFormat"));
 const { upsertRx } = require("./dRx");
 const { getStationByCode, getStationById } = require("./station");
-const {
-  deliveryLogRepo,
-  dRxRepo,
-  deliveryStationRepo,
-} = require("../repositories");
+const { deliveryLogRepo, dRxRepo } = require("../repositories");
 const cache = require("../utils/cache");
 
 // const DAYJS_RX_DATE_FORMATS = ["M/D/YYYY h:mm:ss A", "M/D/YYYY"];
@@ -84,7 +81,7 @@ const delLogItemsCache = (stationId, items) => {
  * @property {number} version
  * @property {string} id
  * @property {string} stationDisplayName
- * @property {string} date
+ * @property {Date} date
  * @property {string} session
  * @property {number} count
  * @property {string} due
@@ -267,7 +264,7 @@ const mapDeliveryLog = (log, stationDisplayName) => ({
   id: log._id.toString(),
   version: log.__v,
   stationDisplayName: stationDisplayName,
-  date: log.date,
+  date: dayjs(log.date, DAYJS_LOG_DATE_FORMAT).toDate(),
   session: log.session,
   count: log.dRxes.length,
   due: log.due ?? "",
