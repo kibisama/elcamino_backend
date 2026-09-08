@@ -202,6 +202,13 @@ exports.findPlansByIds = async (ids) => {
 exports.findRxByRxID = async (rxID) => await DRxRx.findOne({ rxID }).lean();
 
 /**
+ * @param {string} rxNumber
+ * @returns {Promise<DRxRx.DRxRxLean | null>}
+ */
+exports.findRxByRxNumber = async (rxNumber) =>
+  await DRxRx.findOne({ rxNumber }).lean();
+
+/**
  * @param {string[]} ids
  * @returns {Promise<DRxRx.DRxRxLean[]>}
  */
@@ -428,7 +435,7 @@ exports.returnDelivery = async (dRxRxId, version) => {
       },
       { $unset: ["deliveryLog", "deliveryStation", "deliveryDate"] },
     ],
-    { returnDocument: "after", runValidators: true },
+    { updatePipeline: true, returnDocument: "after", runValidators: true },
   ).lean();
   if (!updated) throw E.conflict();
   return updated;

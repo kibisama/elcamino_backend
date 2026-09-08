@@ -30,6 +30,15 @@ exports.findDeliveryLogById = async (id) => {
 };
 
 /**
+ * @param {string | string[]} dRxRxIds
+ * @returns {Promise<DeliveryLog.DeliveryLogLean[]>}
+ */
+exports.searchByDRxRxId = async (dRxRxIds) =>
+  await DeliveryLog.find({
+    dRxes: typeof dRxRxIds === "string" ? dRxRxIds : { $in: dRxRxIds },
+  }).lean();
+
+/**
  * Returns an empty array if not found.
  * @param {ObjectId | string} [deliveryStationId]
  * @param {string} [date]

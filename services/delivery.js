@@ -47,6 +47,7 @@ const delLogItemsCache = (stationId, items) => {
  * @typedef {import("../zod").CreateDeliveryLogInput["items"]} InputItems
  *
  * @typedef {{ [K in typeof QR_DATA_FIELDS[number]]: NonNullable<import("./dRx").DRxDto[K]> }} DRxQrData
+ *
  * @typedef {Object} DeliveryItem
  * @property {number} version
  * @property {string} id
@@ -59,7 +60,20 @@ const delLogItemsCache = (stationId, items) => {
  * @property {string} rxQty
  * @property {string} plan
  * @property {string} patPay
+ *
+ * @typedef {Object} DeliveryLogItem
+ * @property {number} version
+ * @property {string} id
  * @property {string} logId
+ * @property {string} rxID
+ * @property {Date} rxDate
+ * @property {string} rxNumber
+ * @property {string} patient
+ * @property {string} drugName
+ * @property {string} rxQty
+ * @property {string} plan
+ * @property {string} patPay
+ * @property {Date | null} returnDate
  *
  * @typedef {Object} DeliveryLog
  * @property {number} version
@@ -158,25 +172,64 @@ exports.findItemsOnStage = async (invoiceCode) => {
 
 /**
  * @param {string | ObjectId} logId
- * @returns {Promise<DeliveryItem[]>}
+ * @returns {Promise<DeliveryLogItem[]>}
  */
 exports.findLogItems = async (logId) => {
   const log = await deliveryLogRepo.findDeliveryLogById(logId);
-  return await findDeliveryItems(log.dRxes.map((id) => id.toString()));
+  const dRxRxIds = log.dRxes.map((id) => id.toString());
+  const rxs = await dRxRepo.findRxsByIds(dRxRxIds);
+  const patientSet = new Set();
+  const planSet = new Set();
+  rxs.forEach((rx) => {
+    patientSet.add(rx.patient.toString());
+    if (rx.plan) planSet.add(rx.plan.toString());
+  });
+
+  /** @type {[Promise<DRxPatientLean[]>, Promise<DRxPlanLean[]> | null]} */
+  const promises = [dRxRepo.findPatientsByIds([...patientSet]), null];
+  if (planSet.size) promises[1] = dRxRepo.findPlansByIds([...planSet]);
+  const [patients, plans] = await Promise.all(promises);
+  const patientMap = new Map(
+    patients.map((patient) => [patient._id.toString(), patient]),
+  );
+  const planMap = plans
+    ? new Map(plans.map((plan) => [plan._id.toString(), plan]))
+    : null;
+
+  return rxs.map((rx) =>
+    mapDeliveryLogItem(
+      rx,
+      log._id.toString(),
+      //@ts-ignore
+      patientMap.get(rx.patient.toString()),
+      rx.plan && planMap?.get(rx.plan.toString()),
+    ),
+  );
 };
 
 /**
  * @param {string} [invoiceCode]
  * @param {NonNullable<dayjs.ConfigType>} [date]
+ * @param {string} [rxNumber]
  * @returns {Promise<DeliveryLog[]>}
  */
-exports.searchLogs = async (invoiceCode, date) => {
-  if (!(invoiceCode || date)) throw E.badRequest();
-  const station = invoiceCode ? await getStationByCode(invoiceCode) : undefined;
-  const logs = await deliveryLogRepo.findDeliveryLogs(
-    station ? station._id : undefined,
-    date ? dayjs(date).format(DAYJS_LOG_DATE_FORMAT) : undefined,
-  );
+exports.searchLogs = async (invoiceCode, date, rxNumber) => {
+  if (!(invoiceCode || date || rxNumber)) throw E.badRequest();
+  /** @type {DeliveryLogLean[]} */
+  let logs = [];
+  /** @type {import("./station").DeliveryStationLean | undefined} */
+  let station;
+  if (rxNumber) {
+    const rx = await dRxRepo.findRxByRxNumber(rxNumber);
+    if (!rx) return [];
+    logs = await deliveryLogRepo.searchByDRxRxId(rx._id.toString());
+  } else {
+    station = invoiceCode ? await getStationByCode(invoiceCode) : undefined;
+    logs = await deliveryLogRepo.findDeliveryLogs(
+      station ? station._id : undefined,
+      date ? dayjs(date).format(DAYJS_LOG_DATE_FORMAT) : undefined,
+    );
+  }
   /** @type {Record<string, string>} */
   let displayNameMap;
   if (!station) {
@@ -215,6 +268,39 @@ const mapDeliveryLog = (log, stationDisplayName) => ({
 
 /**
  * @param {DRxRxLean} rx
+ * @param {string} logId
+ * @param {DRxPatientLean} patient
+ * @param {DRxPlanLean} [plan]
+ * @returns {DeliveryLogItem}
+ */
+const mapDeliveryLogItem = (rx, logId, patient, plan) => {
+  let returnDate = null;
+  if (rx.logHistory) {
+    for (let i = 0; i < rx.logHistory.length; i++) {
+      if (rx.logHistory[i].toString() === logId) {
+        returnDate = /** @type {Date} */ (rx.returnDates[i]);
+        break;
+      }
+    }
+  }
+  return {
+    id: rx._id.toString(),
+    version: rx.__v,
+    logId,
+    rxID: rx.rxID,
+    rxDate: rx.rxDate,
+    rxNumber: rx.rxNumber,
+    patient: `${patient.patientLastName}, ${patient.patientFirstName}`,
+    drugName: rx.drugName ?? "",
+    rxQty: rx.rxQty ?? "",
+    plan: plan ? (plan.planName ?? plan.planID) : "",
+    patPay: rx.patPay ?? "",
+    returnDate,
+  };
+};
+
+/**
+ * @param {DRxRxLean} rx
  * @param {DRxPatientLean} patient
  * @param {DRxPlanLean} [plan]
  * @returns {DeliveryItem}
@@ -231,7 +317,6 @@ const mapDeliveryItem = (rx, patient, plan) => ({
   rxQty: rx.rxQty ?? "",
   plan: plan ? (plan.planName ?? plan.planID) : "",
   patPay: rx.patPay ?? "",
-  logId: rx.deliveryLog ? rx.deliveryLog.toString() : "",
 });
 
 /**
