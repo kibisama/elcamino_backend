@@ -18,6 +18,7 @@ router.patch(
   validate(cancelDeliverySchema),
   delivery.returnDelivery,
 );
+router.get("/logs", delivery.searchLogs);
 router.post(
   "/logs/:invoiceCode",
   validate(createDeliveryLogSchema),

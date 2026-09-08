@@ -1,8 +1,12 @@
 const E = require("../utils/error");
 const dayjs = require("dayjs");
 const { upsertRx } = require("./dRx");
-const { getStationByCode } = require("./station");
-const { deliveryLogRepo, dRxRepo } = require("../repositories");
+const { getStationByCode, getStationById } = require("./station");
+const {
+  deliveryLogRepo,
+  dRxRepo,
+  deliveryStationRepo,
+} = require("../repositories");
 const cache = require("../utils/cache");
 
 // const DAYJS_RX_DATE_FORMATS = ["M/D/YYYY h:mm:ss A", "M/D/YYYY"];
@@ -76,6 +80,15 @@ const delLogItemsCache = (stationId, items) => {
  * @property {string} patPay
  * @property {string} logId
  *
+ * @typedef {Object} DeliveryLog
+ * @property {number} version
+ * @property {string} id
+ * @property {string} stationDisplayName
+ * @property {string} date
+ * @property {string} session
+ * @property {number} count
+ * @property {string} due
+ * @property {import("../constants").DeliveryLogStatus} status
  */
 
 /**
@@ -122,8 +135,11 @@ const findLogDRxRxIds = async (invoiceCode, date, session) => {
  * @param {string} invoiceCode
  * @returns {Promise<string>}
  */
-const getStationIdByCode = async (invoiceCode) =>
-  (await getStationByCode(invoiceCode))._id.toString();
+const getActiveStationIdByCode = async (invoiceCode) => {
+  const station = await getStationByCode(invoiceCode);
+  if (!station.active) throw E.stationNotActive();
+  return station._id.toString();
+};
 
 /**
  * @param {string[]} dRxRxIds
@@ -194,7 +210,7 @@ const findDRxRxIdsOnStage = async (stationId) => {
  * @returns {Promise<DeliveryItem[]>}
  */
 exports.findItemsOnStage = async (invoiceCode) => {
-  const stationId = await getStationIdByCode(invoiceCode);
+  const stationId = await getActiveStationIdByCode(invoiceCode);
   const dRxRxIds = await findDRxRxIdsOnStage(stationId);
   return await findDeliveryItems(dRxRxIds);
 };
@@ -209,6 +225,54 @@ exports.findLogItems = async (invoiceCode, date, session) => {
   const dRxRxIds = await findLogDRxRxIds(invoiceCode, date, session);
   return await findDeliveryItems(dRxRxIds);
 };
+
+/**
+ * @param {string} [invoiceCode]
+ * @param {NonNullable<dayjs.ConfigType>} [date]
+ * @returns {Promise<DeliveryLog[]>}
+ */
+exports.searchLogs = async (invoiceCode, date) => {
+  if (!(invoiceCode || date)) throw E.badRequest();
+  const station = invoiceCode ? await getStationByCode(invoiceCode) : undefined;
+  const logs = await deliveryLogRepo.findDeliveryLogs(
+    station ? station._id : undefined,
+    date ? dayjs(date).format(DAYJS_LOG_DATE_FORMAT) : undefined,
+  );
+  /** @type {Record<string, string>} */
+  let displayNameMap;
+  if (!station) {
+    displayNameMap = {};
+    for (let i = 0; i < logs.length; i++) {
+      const logStationId = logs[i].station.toString();
+      if (displayNameMap[logStationId] == null) {
+        const station = await getStationById(logStationId);
+        displayNameMap[logStationId] = station.displayName;
+      }
+    }
+  }
+  return logs.map((log) =>
+    mapDeliveryLog(
+      log,
+      station ? station.displayName : displayNameMap[log.station.toString()],
+    ),
+  );
+};
+
+/**
+ * @param {DeliveryLogLean} log
+ * @param {string} stationDisplayName
+ * @returns {DeliveryLog}
+ */
+const mapDeliveryLog = (log, stationDisplayName) => ({
+  id: log._id.toString(),
+  version: log.__v,
+  stationDisplayName: stationDisplayName,
+  date: log.date,
+  session: log.session,
+  count: log.dRxes.length,
+  due: log.due ?? "",
+  status: log.status,
+});
 
 /**
  * @param {DRxRxLean} rx
@@ -262,7 +326,7 @@ const decodeQr = (qr) => {
 exports.upsertRxWithQr = async (qr, invoiceCode) => {
   /** @type {import("./dRx").DRxDto} */
   const qrData = decodeQr(qr);
-  const stationId = await getStationIdByCode(invoiceCode);
+  const stationId = await getActiveStationIdByCode(invoiceCode);
   qrData.deliveryStation = stationId;
   qrData.deliveredDate = new Date();
   let exRx = await dRxRepo.findRxByRxID(qrData.rxID);
@@ -286,7 +350,7 @@ exports.upsertRxWithQr = async (qr, invoiceCode) => {
  */
 const setDelivery = async (dRxRxId, version, invoiceCode) => {
   let stationId;
-  if (invoiceCode) stationId = await getStationIdByCode(invoiceCode);
+  if (invoiceCode) stationId = await getActiveStationIdByCode(invoiceCode);
   const exStationId = await dRxRepo.setDelivery(dRxRxId, version, stationId);
   delItemOnStageCache(dRxRxId, exStationId, stationId);
 
@@ -344,7 +408,7 @@ const validateStageItems = async (stationId, items) => {
  * @returns {Promise<DeliveryLogLean>}
  */
 exports.createLog = async (invoiceCode, items) => {
-  const stationId = await getStationIdByCode(invoiceCode);
+  const stationId = await getActiveStationIdByCode(invoiceCode);
   const realItems = await validateStageItems(stationId, items);
   const day = dayjs();
   const date = day.format(DAYJS_LOG_DATE_FORMAT);

@@ -33,6 +33,13 @@ exports.createLog = async (req, res) =>
 /**
  * @type {RequestHandler}
  */
+exports.searchLogs = async (req, res) =>
+  //@ts-ignore
+  res.json(await delivery.searchLogs(req.query.invoiceCode, req.query.date));
+
+/**
+ * @type {RequestHandler}
+ */
 exports.getSessions = async (req, res) =>
   //@ts-ignore
   res.json(await delivery.getSessions(req.params.invoiceCode, req.query.date));

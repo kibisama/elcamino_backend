@@ -47,7 +47,9 @@ const delCache = (station) => {
  */
 exports.createStation = async (input) => {
   const station = await deliveryStationRepo.create(input);
-  station.active && setCache(station);
+  setCache(station);
+  cache.delDisplayMenuItems();
+  cache.delPrefixes();
   return station;
 };
 

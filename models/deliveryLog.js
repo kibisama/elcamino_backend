@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { DELIVERY_LOG_STATUS } = require("../constants");
 
 const deliveryLogSchema = new mongoose.Schema({
   date: {
@@ -27,7 +28,7 @@ const deliveryLogSchema = new mongoose.Schema({
   due: String,
   status: {
     type: String,
-    enum: ["CREATED", "PUBLISHED", "DELIVERED"],
+    enum: DELIVERY_LOG_STATUS,
     default: "CREATED",
     index: true,
   },

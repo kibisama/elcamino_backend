@@ -1,4 +1,17 @@
 // ==========================================
+// Delivery Log
+// ==========================================
+exports.DELIVERY_LOG_STATUS = /** @type {const} */ ([
+  "CREATED",
+  "PUBLISHED",
+  "DELIVERED",
+]);
+
+/**
+ * @typedef {exports.DELIVERY_LOG_STATUS[number]} DeliveryLogStatus
+ */
+
+// ==========================================
 // DRx
 // ==========================================
 

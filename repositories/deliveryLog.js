@@ -21,13 +21,15 @@ exports.findDeliveryLog = async (deliveryStationId, date, session) => {
 
 /**
  * Returns an empty array if not found.
- * @param {ObjectId | string} deliveryStationId
+ * @param {ObjectId | string} [deliveryStationId]
  * @param {string} [date]
  * @returns {Promise<DeliveryLog.DeliveryLogLean[]>}
  */
 exports.findDeliveryLogs = async (deliveryStationId, date) => {
+  if (!(deliveryStationId || date)) throw E.invalidParam();
   /** @type {Record<string, *>} */
-  const query = { station: deliveryStationId };
+  const query = {};
+  if (deliveryStationId) query.station = deliveryStationId;
   if (date) query.date = date;
   const logs = await DeliveryLog.find(query).lean();
   return logs;

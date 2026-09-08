@@ -31,11 +31,9 @@ exports.update = async (invoiceCode, __v, update) => {
  */
 exports.findByInvoiceCode = async (invoiceCode) => {
   const station = await DeliveryStation.findOne({
-    active: true,
     invoiceCode,
   }).lean();
   if (!station) throw E.stationNotFound();
-  if (!station.active) throw E.stationNotActive();
   return station;
 };
 
@@ -45,11 +43,9 @@ exports.findByInvoiceCode = async (invoiceCode) => {
  */
 exports.findById = async (id) => {
   const station = await DeliveryStation.findOne({
-    active: true,
     _id: id,
   }).lean();
   if (!station) throw E.stationNotFound();
-  if (!station.active) throw E.stationNotActive();
   return station;
 };
 
