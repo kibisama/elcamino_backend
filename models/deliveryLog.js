@@ -11,6 +11,7 @@ const deliveryLogSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "Delivery Station",
     required: true,
+    index: true,
   },
   session: {
     type: String,
