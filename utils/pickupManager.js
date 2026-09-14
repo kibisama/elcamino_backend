@@ -48,7 +48,7 @@ class PickupManager {
       clearInterval(this.timeout);
       this.timeout = null;
     }
-    this.timeout = setInterval(() => this.emitTime(), 1000);
+    this.timeout = setInterval(() => this.emitTime(), 60000);
 
     this.io.on("connect", (socket) => {
       this.#emitAll(socket);
