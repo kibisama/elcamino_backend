@@ -151,3 +151,17 @@ exports.searchPatients = async (query) => {
   const patients = await dRxRepo.searchPatient(last, first);
   return patients.map((patient) => toPatientOption(patient));
 };
+
+/**
+ * @param {string} rxNumber
+ * @returns {Promise<Omit<DRxRxLean, "patient" | "plan"> & { patient: DRxPatientLean, plan?: DRxPlanLean }>}
+ */
+exports.findRxByRxNumber = async (rxNumber) => {
+  const [rx] = await dRxRepo.findRxsByRxNumber(rxNumber);
+  if (!rx) throw E.notFound();
+  const patient = await dRxRepo.findPatientById(rx.patient.toString());
+  let plan;
+  if (rx.plan) plan = await dRxRepo.findPlanById(rx.plan.toString());
+
+  return { ...rx, patient, plan };
+};

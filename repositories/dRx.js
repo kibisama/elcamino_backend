@@ -203,10 +203,10 @@ exports.findRxByRxID = async (rxID) => await DRxRx.findOne({ rxID }).lean();
 
 /**
  * @param {string} rxNumber
- * @returns {Promise<DRxRx.DRxRxLean | null>}
+ * @returns {Promise<DRxRx.DRxRxLean[]>}
  */
-exports.findRxByRxNumber = async (rxNumber) =>
-  await DRxRx.findOne({ rxNumber }).lean();
+exports.findRxsByRxNumber = async (rxNumber) =>
+  await DRxRx.find({ rxNumber }).sort({ rxDate: -1 }).lean();
 
 /**
  * @param {string[]} ids

@@ -220,7 +220,7 @@ exports.searchLogs = async (invoiceCode, date, rxNumber) => {
   /** @type {import("./station").DeliveryStationLean | undefined} */
   let station;
   if (rxNumber) {
-    const rx = await dRxRepo.findRxByRxNumber(rxNumber);
+    const [rx] = await dRxRepo.findRxsByRxNumber(rxNumber);
     if (!rx) return [];
     logs = await deliveryLogRepo.searchByDRxRxId(rx._id.toString());
   } else {

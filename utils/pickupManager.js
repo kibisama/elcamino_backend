@@ -62,6 +62,7 @@ class PickupManager {
         }),
       );
       socket.on("clear_canvas", this.#clearCanvas.bind(this));
+      socket.on("clear_date", this.#clearDate.bind(this));
       socket.on("reset", this.reset.bind(this));
       socket.on("refresh", this.#emitAll.bind(this));
     });
@@ -145,6 +146,11 @@ class PickupManager {
   #clearCanvas() {
     this.data.canvas = null;
     this.io.emit("canvas", this.data.canvas);
+  }
+
+  #clearDate() {
+    this.data.date = null;
+    this.io.emit("date", this.data.canvas);
   }
 
   /**
