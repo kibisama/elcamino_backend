@@ -1,4 +1,152 @@
 const amqp = require("amqplib");
+const config = require("../config/rabbit");
+const logger = require("../config/logger");
+
+const EXCHANGE = "elcamino";
+let model = null;
+let channel = null;
+
+async function setupTopology(openModel) {
+  const ch = await openModel.createChannel();
+  try {
+    await ch.assertExchange(EXCHANGE, "topic", { durable: true });
+    logger.debug(
+      "[rabbitmq] topology asserted - exchange: " +
+        EXCHANGE +
+        " (topic, durable)",
+    );
+  } finally {
+    await ch.close();
+  }
+}
+
+function buildRecoveryOptions() {
+  const r = config.reconnect;
+  return {
+    enabled: true,
+    initialDelay: r.initialDelayMs,
+    maxDelay: r.maxDelayMs,
+    maxRetries: r.maxRetries,
+    factor: r.backoffFactor,
+    jitter: r.jitter,
+    setup: setupTopology,
+  };
+}
+
+async function init() {
+  if (model) return;
+  const urlStr = config.url.toString();
+  logger.info(
+    "[rabbitmq] connecting - " +
+      config.hostname +
+      ":" +
+      config.port +
+      "/" +
+      config.vhost,
+  );
+  model = await amqplib.connect(urlStr, {
+    heartbeat: config.heartbeatSec,
+    timeout: config.connectTimeoutMs,
+    recovery: buildRecoveryOptions(),
+  });
+  model.on("connect", function () {
+    logger.info("[rabbitmq] connected");
+  });
+  model.on("disconnect", function (err) {
+    logger.warn(
+      "[rabbitmq] disconnected - " + ((err && err.message) || "unknown"),
+    );
+    channel = null;
+  });
+  model.on("reconnect-scheduled", function (attempt, delay) {
+    logger.info(
+      "[rabbitmq] reconnect scheduled - attempt #" +
+        attempt +
+        ", delay " +
+        delay +
+        "ms",
+    );
+  });
+  model.on("connect-failed", function (err) {
+    logger.error(
+      "[rabbitmq] reconnect failed - " + ((err && err.message) || "unknown"),
+    );
+  });
+  model.on("blocked", function (reason) {
+    logger.warn("[rabbitmq] connection blocked - " + (reason || "no reason"));
+  });
+  model.on("unblocked", function () {
+    logger.info("[rabbitmq] connection unblocked");
+  });
+  channel = await model.createChannel();
+  logger.info("[rabbitmq] initialization complete");
+}
+
+async function getChannel() {
+  if (channel && channel.isOpen) return channel;
+  logger.debug("[rabbitmq] creating new channel");
+  channel = await model.createChannel();
+  return channel;
+}
+
+async function publish(routingKey, message, options) {
+  options = options || {};
+  const body = Buffer.from(JSON.stringify(message));
+  const publishOpts = Object.assign(
+    {
+      persistent: true,
+      contentType: "application/json",
+      timestamp: Math.floor(Date.now() / 1000),
+    },
+    options,
+  );
+  let ch = await getChannel();
+  try {
+    ch.publish(EXCHANGE, routingKey, body, publishOpts);
+    logger.debug("[rabbitmq] published to " + EXCHANGE + " / " + routingKey);
+    return;
+  } catch (err) {
+    const isChannelDead =
+      err.name === "IllegalOperationError" ||
+      err.code === 320 ||
+      /channel.*closed|connection.*closed/i.test(err.message);
+    if (isChannelDead) {
+      logger.warn(
+        "[rabbitmq] publish failed (dead channel) - retrying: " + err.message,
+      );
+    } else {
+      throw err;
+    }
+  }
+  channel = null;
+  ch = await getChannel();
+  ch.publish(EXCHANGE, routingKey, body, publishOpts);
+  logger.debug(
+    "[rabbitmq] published (retry) to " + EXCHANGE + " / " + routingKey,
+  );
+}
+
+async function close() {
+  if (!model) return;
+  try {
+    logger.info("[rabbitmq] closing connection...");
+    await model.close();
+    logger.info("[rabbitmq] connection closed");
+  } catch (err) {
+    logger.warn("[rabbitmq] error during close: " + err.message);
+  } finally {
+    model = null;
+    channel = null;
+  }
+}
+
+module.exports = {
+  EXCHANGE: EXCHANGE,
+  init: init,
+  close: close,
+  publish: publish,
+  getChannel: getChannel,
+};
 
 class RabbitMQManager {
   constructor() {
@@ -16,10 +164,7 @@ class RabbitMQManager {
     if (this.isConnecting) return;
 
     this.isConnecting = true;
-    if (this.reconnectTimeoutId) {
-      clearTimeout(this.reconnectTimeoutId);
-      this.reconnectTimeoutId = null;
-    }
+
     try {
       this.connection = await amqp.connect(RABBITMQ_URL);
 

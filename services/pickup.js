@@ -4,20 +4,68 @@ const manager = require("../utils/pickupManager");
 const E = require("../utils/error");
 
 /**
+ * @typedef {Omit<import("../utils/pickupManager").PickupData, "state">} PickupDto
  * @typedef {Pick<import("../models/dRxRx").DRxRxLean, "rxNumber" | "drugName" | "doctorName" | "rxDate"> &
  * { patient: string }} PickupRxInfo
  */
 
 /**
+ * @param {string[]} arr1
+ * @param {string[]} arr2
+ * @returns {boolean}
+ */
+const areItemsEqual = (arr1, arr2) => {
+  if (arr1.length !== arr2.length) return false;
+
+  const countMap = new Map();
+
+  for (let i = 0; i < arr1.length; i++) {
+    const str = arr1[i];
+    countMap.set(str, (countMap.get(str) || 0) + 1);
+  }
+
+  for (let i = 0; i < arr2.length; i++) {
+    const str = arr2[i];
+    const count = countMap.get(str);
+
+    if (!count) return false;
+
+    if (count === 1) {
+      countMap.delete(str);
+    } else {
+      countMap.set(str, count - 1);
+    }
+  }
+
+  return countMap.size === 0;
+};
+
+/**
+ * @param {import("../utils/pickupManager").PickupData} data
+ * @param {PickupDto} dto
+ */
+const validatePickup = (data, dto) => {
+  if (data.state !== "pre-submit" || data.items.length === 0 || !data.canvas)
+    throw E.badRequest();
+  switch (true) {
+    case data.canvas !== dto.canvas:
+    case data.date !== dto.date:
+    case !areItemsEqual(data.items, dto.items):
+    case data.notes !== dto.notes:
+    case data.relation !== dto.relation:
+      throw E.conflict();
+  }
+};
+
+/**
+ * @param {PickupDto} dto
  * @returns {Promise<void>}
  */
-exports.createPickup = async () => {
+exports.createPickup = async (dto) => {
   const data = manager.getData();
-  const { state, items, date, canvas, relation, notes } = data;
+  const { items, date, canvas, relation, notes } = data;
 
-  if (state !== "pre-submit" || items.length === 0 || !canvas) {
-    throw E.badRequest();
-  }
+  validatePickup(data, dto);
 
   const deliveryDate = date ? new Date(date) : new Date();
 
@@ -41,7 +89,8 @@ exports.createPickup = async () => {
 
   await pickupRepo.create(
     { rxNumber: items, relation, notes, deliveryDate },
-    canvas,
+    /** @type {string} */
+    (canvas),
   );
 
   manager.emitSuccess();

@@ -4,7 +4,7 @@ const pickup = require("../services/pickup");
  * @type {RequestHandler}
  */
 exports.post = async (req, res) => {
-  await pickup.createPickup();
+  await pickup.createPickup(req.body);
   return res.sendStatus(204);
 };
 
