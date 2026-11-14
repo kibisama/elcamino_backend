@@ -2,230 +2,85 @@ const amqp = require("amqplib");
 const config = require("../config/rabbit");
 const logger = require("../config/logger");
 
-const EXCHANGE = "elcamino";
-let model = null;
-let channel = null;
+// async function publish(routingKey, message, options) {
+//   options = options || {};
+//   const body = Buffer.from(JSON.stringify(message));
+//   const publishOpts = Object.assign(
+//     {
+//       persistent: true,
+//       contentType: "application/json",
+//       timestamp: Math.floor(Date.now() / 1000),
+//     },
+//     options,
+//   );
+//   let ch = await getChannel();
+//   try {
+//     ch.publish(EXCHANGE, routingKey, body, publishOpts);
+//     logger.debug("[rabbitmq] published to " + EXCHANGE + " / " + routingKey);
+//     return;
+//   } catch (err) {
+//     const isChannelDead =
+//       err.name === "IllegalOperationError" ||
+//       err.code === 320 ||
+//       /channel.*closed|connection.*closed/i.test(err.message);
+//     if (isChannelDead) {
+//       logger.warn(
+//         "[rabbitmq] publish failed (dead channel) - retrying: " + err.message,
+//       );
+//     } else {
+//       throw err;
+//     }
+//   }
+//   channel = null;
+//   ch = await getChannel();
+//   ch.publish(EXCHANGE, routingKey, body, publishOpts);
+//   logger.debug(
+//     "[rabbitmq] published (retry) to " + EXCHANGE + " / " + routingKey,
+//   );
+// }
 
-async function setupTopology(openModel) {
-  const ch = await openModel.createChannel();
-  try {
-    await ch.assertExchange(EXCHANGE, "topic", { durable: true });
-    logger.debug(
-      "[rabbitmq] topology asserted - exchange: " +
-        EXCHANGE +
-        " (topic, durable)",
-    );
-  } finally {
-    await ch.close();
-  }
-}
+/**
+ * @typedef {(payload: any, rawMsg: amqp.ConsumeMessage) => Promise<void>} QueueHandler
+ */
 
-function buildRecoveryOptions() {
-  const r = config.reconnect;
-  return {
-    enabled: true,
-    initialDelay: r.initialDelayMs,
-    maxDelay: r.maxDelayMs,
-    maxRetries: r.maxRetries,
-    factor: r.backoffFactor,
-    jitter: r.jitter,
-    setup: setupTopology,
-  };
-}
-
-async function init() {
-  if (model) return;
-  const urlStr = config.url.toString();
-  logger.info(
-    "[rabbitmq] connecting - " +
-      config.hostname +
-      ":" +
-      config.port +
-      "/" +
-      config.vhost,
-  );
-  model = await amqplib.connect(urlStr, {
-    heartbeat: config.heartbeatSec,
-    timeout: config.connectTimeoutMs,
-    recovery: buildRecoveryOptions(),
-  });
-  model.on("connect", function () {
-    logger.info("[rabbitmq] connected");
-  });
-  model.on("disconnect", function (err) {
-    logger.warn(
-      "[rabbitmq] disconnected - " + ((err && err.message) || "unknown"),
-    );
-    channel = null;
-  });
-  model.on("reconnect-scheduled", function (attempt, delay) {
-    logger.info(
-      "[rabbitmq] reconnect scheduled - attempt #" +
-        attempt +
-        ", delay " +
-        delay +
-        "ms",
-    );
-  });
-  model.on("connect-failed", function (err) {
-    logger.error(
-      "[rabbitmq] reconnect failed - " + ((err && err.message) || "unknown"),
-    );
-  });
-  model.on("blocked", function (reason) {
-    logger.warn("[rabbitmq] connection blocked - " + (reason || "no reason"));
-  });
-  model.on("unblocked", function () {
-    logger.info("[rabbitmq] connection unblocked");
-  });
-  channel = await model.createChannel();
-  logger.info("[rabbitmq] initialization complete");
-}
-
-async function getChannel() {
-  if (channel && channel.isOpen) return channel;
-  logger.debug("[rabbitmq] creating new channel");
-  channel = await model.createChannel();
-  return channel;
-}
-
-async function publish(routingKey, message, options) {
-  options = options || {};
-  const body = Buffer.from(JSON.stringify(message));
-  const publishOpts = Object.assign(
-    {
-      persistent: true,
-      contentType: "application/json",
-      timestamp: Math.floor(Date.now() / 1000),
-    },
-    options,
-  );
-  let ch = await getChannel();
-  try {
-    ch.publish(EXCHANGE, routingKey, body, publishOpts);
-    logger.debug("[rabbitmq] published to " + EXCHANGE + " / " + routingKey);
-    return;
-  } catch (err) {
-    const isChannelDead =
-      err.name === "IllegalOperationError" ||
-      err.code === 320 ||
-      /channel.*closed|connection.*closed/i.test(err.message);
-    if (isChannelDead) {
-      logger.warn(
-        "[rabbitmq] publish failed (dead channel) - retrying: " + err.message,
-      );
-    } else {
-      throw err;
-    }
-  }
-  channel = null;
-  ch = await getChannel();
-  ch.publish(EXCHANGE, routingKey, body, publishOpts);
-  logger.debug(
-    "[rabbitmq] published (retry) to " + EXCHANGE + " / " + routingKey,
-  );
-}
-
-async function close() {
-  if (!model) return;
-  try {
-    logger.info("[rabbitmq] closing connection...");
-    await model.close();
-    logger.info("[rabbitmq] connection closed");
-  } catch (err) {
-    logger.warn("[rabbitmq] error during close: " + err.message);
-  } finally {
-    model = null;
-    channel = null;
-  }
-}
-
-module.exports = {
-  EXCHANGE: EXCHANGE,
-  init: init,
-  close: close,
-  publish: publish,
-  getChannel: getChannel,
-};
+const { EXCHANGES, ROUTINGS, QUEUES } = config;
 
 class RabbitMQManager {
   constructor() {
-    /** @type {amqp.ChannelModel | null} */
+    /** @type {amqp.RecoveringChannelModel | null} */
     this.connection = null;
 
     /** @type {amqp.ConfirmChannel | null} */
     this.channel = null;
 
-    this.isConnecting = false;
+    this.exchanges = EXCHANGES;
+    this.routings = ROUTINGS;
+    this.queues = QUEUES;
   }
 
-  async connect() {
-    if (this.connection) return this.connection;
-    if (this.isConnecting) return;
+  /**
+   * @type {Map<string, { handler: QueueHandler, options: amqp.Options.Consume }>}
+   */
+  #consumers = new Map();
 
-    this.isConnecting = true;
-
-    try {
-      this.connection = await amqp.connect(RABBITMQ_URL);
-
-      this.connection.on("error", (error) => {
-        console.error(error);
-        this.#reconnect();
-      });
-      this.connection.on("close", (error) => {
-        if (error) {
-          console.error(error);
-          this.#reconnect();
-        }
-      });
-      this.channel = await this.connection.createConfirmChannel();
-
-      await this.#init();
-
-      await this.channel.prefetch(PREFETCH);
-
-      this.isConnecting = false;
-
-      // for (let i = 0; i < this.onConnect.length; i++) this.onConnect[i]();
-
-      return this.connection;
-    } catch (error) {
-      console.error(error);
-      this.isConnecting = false;
-      this.#reconnect();
-    }
-  }
-
-  async #reconnect() {
-    if (this.isConnecting) return;
-
-    this.isConnecting = true;
-    if (this.channel) this.channel.removeAllListeners();
-    if (this.connection) this.connection.removeAllListeners();
-    this.channel = null;
-    this.connection = null;
-
-    setTimeout(() => {
-      this.isConnecting = false;
-      this.connect();
-    }, 5000);
-  }
-
-  async #init() {
-    if (!this.channel) return;
-    await this.channel.assertExchange(EXCHANGES.DLX, "direct", {
+  /**
+   * @param {amqp.ConfirmChannel | null} ch
+   */
+  async #init(ch) {
+    if (!ch) return;
+    ch.on("error", (error) => {
+      if (error) logger.error(error);
+    });
+    await ch.prefetch(config.PREFETCH_COUNT);
+    await ch.assertExchange(EXCHANGES.DLX, "direct", {
       durable: true,
     });
     for (const queue in QUEUES) {
       if (queue.endsWith("_DLQ")) {
-        await this.channel.assertQueue(QUEUES[queue], { durable: true });
-        await this.channel.bindQueue(
-          QUEUES[queue],
-          EXCHANGES.DLX,
-          ROUTINGS.DLQ,
-        );
+        await ch.assertQueue(QUEUES[queue], { durable: true });
+        await ch.bindQueue(QUEUES[queue], EXCHANGES.DLX, ROUTINGS.DLQ);
       } else {
-        await this.channel.assertQueue(QUEUES[queue], {
+        await ch.assertQueue(QUEUES[queue], {
           durable: true,
           arguments: {
             "x-dead-letter-exchange": EXCHANGES.DLX,
@@ -234,5 +89,98 @@ class RabbitMQManager {
         });
       }
     }
+
+    for (const [queue, { handler, options }] of this.#consumers.entries()) {
+      await this.#consume(ch, queue, handler, options);
+    }
+  }
+
+  /**
+   * @param {amqp.ChannelModel} model
+   */
+  async #setup(model) {
+    const ch = await model.createConfirmChannel();
+    this.channel = ch;
+    await this.#init(ch);
+  }
+
+  async connect() {
+    if (this.connection) return this.connection;
+
+    try {
+      this.connection = await amqp.connect(config.RABBIT_URL, {
+        timeout: config.CONNECT_TIMEOUT_MS,
+        recovery: { setup: this.#setup.bind(this) },
+      });
+
+      this.connection.on("error", (error) => {
+        if (error) logger.error(error);
+      });
+
+      return this.connection;
+    } catch (error) {
+      logger.error(error);
+      throw error;
+    }
+  }
+
+  async publish() {
+    //
+  }
+
+  /**
+   * @param {amqp.ConfirmChannel} ch
+   * @param {string} queue
+   * @param {QueueHandler} handler
+   * @param {amqp.Options.Consume} [options]
+   */
+  async #consume(ch, queue, handler, options = {}) {
+    await ch.consume(
+      queue,
+      async (msg) => {
+        if (!msg) return;
+
+        try {
+          const contentStr = msg.content.toString();
+          const payload = JSON.parse(contentStr);
+
+          await handler(payload, msg);
+
+          ch.ack(msg);
+        } catch (err) {
+          logger.error(err);
+          ch.nack(msg, false, false);
+        }
+      },
+      { noAck: false, ...options },
+    );
+  }
+
+  /**
+   * @param {amqp.ConfirmChannel} ch
+   * @param {string} queue
+   * @param {QueueHandler} handler
+   * @param {amqp.Options.Consume} [options]
+   */
+  async registerConsumer(ch, queue, handler, options = {}) {
+    this.#consumers.set(queue, { handler, options });
+
+    if (this.channel)
+      await this.#consume(this.channel, queue, handler, options);
+  }
+
+  async close() {
+    try {
+      if (this.channel) await this.channel.close();
+
+      if (this.connection) await this.connection.close();
+    } catch (error) {
+      logger.error(error);
+    } finally {
+      this.channel = null;
+      this.connection = null;
+    }
   }
 }
+
+module.exports = new RabbitMQManager();
