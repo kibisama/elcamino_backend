@@ -117,6 +117,10 @@ class RabbitMQManager {
         if (error) logger.error(error);
       });
 
+      this.connection.on("disconnect", () => {
+        this.channel = null;
+      });
+
       return this.connection;
     } catch (error) {
       logger.error(error);
@@ -157,12 +161,11 @@ class RabbitMQManager {
   }
 
   /**
-   * @param {amqp.ConfirmChannel} ch
    * @param {string} queue
    * @param {QueueHandler} handler
    * @param {amqp.Options.Consume} [options]
    */
-  async registerConsumer(ch, queue, handler, options = {}) {
+  async registerConsumer(queue, handler, options = {}) {
     this.#consumers.set(queue, { handler, options });
 
     if (this.channel)

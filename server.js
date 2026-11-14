@@ -7,7 +7,7 @@ const connectMongo = require("./config/mongo");
 const rabbit = require("./utils/rabbit");
 const io = require("./socket");
 
-const PORT = process.env.PORT || 4334;
+const PORT = process.env.PORT || 4989;
 
 async function bootstrap() {
   await connectMongo();
@@ -22,7 +22,6 @@ async function bootstrap() {
 bootstrap();
 
 function shutdown() {
-  logger.info("⏳⏳ Graceful shutdown initiated");
   rabbit
     .close()
     .then(() => {
