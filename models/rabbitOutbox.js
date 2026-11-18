@@ -1,11 +1,11 @@
 const mongoose = require("mongoose");
 
-const outboxMessageSchema = new mongoose.Schema(
+const rabbitOutboxSchema = new mongoose.Schema(
   {
     messageId: {
       type: String,
       required: true,
-      unique: true, // 컨슈머 Inbox 중복 체크용 고유 ID
+      unique: true,
     },
     exchange: {
       type: String,
@@ -19,22 +19,18 @@ const outboxMessageSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       required: true,
     },
+    options: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
     status: {
       type: String,
-      enum: ["PENDING", "PROCESSING", "PUBLISHED", "DEAD"],
+      enum: ["PENDING", "PROCESSING", "PUBLISHED", "FAILED"],
       default: "PENDING",
     },
     retryCount: {
       type: Number,
       default: 0,
-    },
-    lockedAt: {
-      type: Date,
-      default: null, // 워커 크래시 시 좀비 락(Stale Lock) 복구용
-    },
-    lastError: {
-      type: String,
-      default: null,
     },
     publishedAt: {
       type: Date,
@@ -44,8 +40,20 @@ const outboxMessageSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-outboxMessageSchema.index({ status: 1, createdAt: 1 });
-outboxMessageSchema.index({ status: 1, lockedAt: 1 });
-outboxMessageSchema.index({ publishedAt: 1 }, { expireAfterSeconds: 604800 });
+rabbitOutboxSchema.index({ status: 1, createdAt: 1 });
+rabbitOutboxSchema.index({ status: 1, lockedAt: 1 });
+rabbitOutboxSchema.index(
+  { publishedAt: 1 },
+  {
+    expireAfterSeconds: 604800,
+    partialFilterExpression: { status: "PUBLISHED" },
+  },
+);
+module.exports = mongoose.model("RabbitOutbox", rabbitOutboxSchema);
 
-module.exports = mongoose.model("OutboxMessage", outboxMessageSchema);
+/**
+ * @typedef {InferSchemaType<typeof rabbitOutboxSchema>} RabbitOutboxSchema
+ * @typedef {CreateInput<RabbitOutboxSchema, "options" | "status" | "retryCount" |
+ * "publishedAt">} CreateRabbitOutboxInput
+ * @typedef {InferLeanWithVersion<typeof rabbitOutboxSchema>} RabbitOutboxLean
+ */

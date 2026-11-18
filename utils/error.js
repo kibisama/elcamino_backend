@@ -75,6 +75,12 @@ module.exports = {
   rxNotFound(message) {
     return new AppError("RX_NOT_FOUND", message);
   },
+  /**
+   * @param {string} [message]
+   */
+  rxAlreadyDelivered(message) {
+    return new AppError("RX_ALREADY_DELIVERED", message);
+  },
 
   // ==========================================
   // Setting
@@ -92,6 +98,10 @@ module.exports = {
   invalidParam(message) {
     return new AppError("INVALID_PARAM", message);
   },
+
+  // ==========================================
+  // Http
+  // ==========================================
   /**
    * @param {string} [message]
    */
@@ -113,12 +123,6 @@ module.exports = {
   /**
    * @param {string} [message]
    */
-  missingNamespace(message) {
-    return new AppError("MISSING_NAMESPACE", message);
-  },
-  /**
-   * @param {string} [message]
-   */
   forbidden(message) {
     return new AppError("FORBIDDEN", message);
   },
@@ -128,10 +132,20 @@ module.exports = {
   internalServerError(message) {
     return new AppError("INTERNAL_SERVER_ERROR", message);
   },
+
+  // ==========================================
+  // System
+  // ==========================================
   /**
    * @param {string} [message]
    */
-  rxAlreadyDelivered(message) {
-    return new AppError("RX_ALREADY_DELIVERED", message);
+  missingNamespace(message) {
+    return new AppError("MISSING_NAMESPACE", message);
+  },
+  /**
+   * @param {string} [message]
+   */
+  noMqChannel(message) {
+    return new AppError("NO_MQ_CHANNEL", message);
   },
 };

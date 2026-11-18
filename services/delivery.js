@@ -5,6 +5,7 @@ const { upsertRx } = require("./dRx");
 const { getStationByCode, getStationById } = require("./station");
 const { deliveryLogRepo, dRxRepo } = require("../repositories");
 const cache = require("../utils/cache");
+const rabbit = require("../utils/rabbit");
 
 // const DAYJS_RX_DATE_FORMATS = ["M/D/YYYY h:mm:ss A", "M/D/YYYY"];
 const DAYJS_LOG_DATE_FORMAT = "MMDDYYYY";
@@ -37,6 +38,26 @@ const delItemOnStageCache = async (dRxRxId, exStationId, newStationId) => {
 const delLogItemsCache = (stationId, items) => {
   cache.delStage(stationId);
   items.forEach((item) => cache.delItem(item.id));
+};
+
+const pubNewDelivery = async () => {
+  await rabbit.publish();
+};
+
+const pubSetDelivery = async () => {
+  await rabbit.publish();
+};
+
+const pubCancelDelivery = async () => {
+  await rabbit.publish();
+};
+
+const pubReturnDelivery = async () => {
+  await rabbit.publish();
+};
+
+const pubLogDelivery = async () => {
+  await rabbit.publish();
 };
 
 /**

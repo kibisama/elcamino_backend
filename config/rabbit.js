@@ -15,16 +15,16 @@ exports.PREFETCH_COUNT = 1;
 
 exports.EXCHANGES = Object.freeze({
   DLX: "backend_dlx_ex",
+  MAIN: "backend_main_ex",
 });
 
 exports.ROUTINGS = Object.freeze({
   DLQ: "backend_dlq",
 });
 
-/**
- * @type {Object<string, string>}
- */
+exports.PUBLISH_CONFIRM_TIMEOUT_MS = 10_000;
+
 exports.QUEUES = Object.freeze({
   NEW_RX: "drx_automation",
-  NEW_RX_DLQ: "drx_automation_dlq",
+  NEW_RX_DLQ: "drx_automation.dlq",
 });
