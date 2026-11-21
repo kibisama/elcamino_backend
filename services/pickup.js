@@ -1,4 +1,3 @@
-const dayjs = require("dayjs");
 const { pickupRepo, dRxRepo } = require("../repositories");
 const manager = require("../utils/pickupManager");
 const E = require("../utils/error");

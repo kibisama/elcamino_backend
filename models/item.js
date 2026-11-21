@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-const { ITEM_INPUT_METHODS } = require("../constants");
 
 const itemSchema = new mongoose.Schema({
   gtin: {
@@ -12,11 +11,6 @@ const itemSchema = new mongoose.Schema({
   lot: { type: String, required: true },
   sn: { type: String, required: true },
   exp: { type: Date, required: true },
-  inputMethod: {
-    type: String,
-    enum: ITEM_INPUT_METHODS,
-    required: true,
-  },
 
   cost: String,
 

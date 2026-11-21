@@ -24,6 +24,8 @@ exports.ROUTINGS = Object.freeze({
   DELIVERY_CANCEL: "delivery.cancel",
   DELIVERY_RETURN: "delivery.return",
   DELIVERY_LOG: "delivery.log",
+
+  ITEM_FILLED: "item.filled",
 });
 
 exports.PUBLISH_CONFIRM_TIMEOUT_MS = 10_000;

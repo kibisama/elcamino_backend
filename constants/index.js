@@ -47,9 +47,3 @@ exports.DRX_DRUG_DEA = /** @type {const} */ (["0", "1", "2", "3", "4", "5"]);
  * @typedef {exports.DRX_BRAND_OR_GENERIC[number]} BrandOrGeneric
  * @typedef {exports.DRX_DRUG_DEA[number]} DrugDEA
  */
-
-// ==========================================
-// Item
-// ==========================================
-
-exports.ITEM_INPUT_METHODS = /** @type {const} */ (["SCAN", "DSCSA", "EDIT"]);
