@@ -6,6 +6,7 @@ const { getStationByCode, getStationById } = require("./station");
 const { deliveryLogRepo, dRxRepo } = require("../repositories");
 const cache = require("../utils/cache");
 const rabbit = require("../utils/rabbit");
+const { routings } = rabbit;
 
 // const DAYJS_RX_DATE_FORMATS = ["M/D/YYYY h:mm:ss A", "M/D/YYYY"];
 const DAYJS_LOG_DATE_FORMAT = "MMDDYYYY";
@@ -23,9 +24,8 @@ const QR_DATA_FIELDS = /** @type {const} */ ([
  * @param {string} dRxRxId
  * @param {string | undefined} [exStationId]
  * @param {string | undefined} [newStationId]
- * @returns {Promise<void>}
  */
-const delItemOnStageCache = async (dRxRxId, exStationId, newStationId) => {
+const delItemOnStageCache = (dRxRxId, exStationId, newStationId) => {
   cache.delItem(dRxRxId);
   if (exStationId) cache.delStage(exStationId);
   if (newStationId) cache.delStage(newStationId);
@@ -40,24 +40,54 @@ const delLogItemsCache = (stationId, items) => {
   items.forEach((item) => cache.delItem(item.id));
 };
 
-const pubNewDelivery = async () => {
-  await rabbit.publish();
+/**
+ * @param {string} dRxRxId
+ * @param {string} invoiceCode
+ */
+const pubDeliveryItem = async (dRxRxId, invoiceCode) => {
+  const item = await findDeliveryItem(dRxRxId);
+  await rabbit.publish(
+    /** @type {DeliveryItemPublish} */
+    ({ ...item, invoiceCode, updatedAt: new Date() }),
+    { routingKey: routings.DELIVERY_ITEM },
+  );
 };
 
-const pubSetDelivery = async () => {
-  await rabbit.publish();
+/**
+ * @param {string} dRxRxId
+ */
+const pubDeliveryCancel = async (dRxRxId) => {
+  const item = await findDeliveryItem(dRxRxId);
+  await rabbit.publish(
+    /** @type {DeliveryItemPublish} */
+    ({ ...item, updatedAt: new Date() }),
+    { routingKey: routings.DELIVERY_CANCEL },
+  );
 };
 
-const pubCancelDelivery = async () => {
-  await rabbit.publish();
+/**
+ * @param {string} dRxRxId
+ */
+const pubDeliveryReturn = async (dRxRxId) => {
+  const item = await findDeliveryItem(dRxRxId);
+  await rabbit.publish(
+    /** @type {DeliveryItemPublish} */
+    ({ ...item, updatedAt: new Date() }),
+    { routingKey: routings.DELIVERY_RETURN },
+  );
 };
 
-const pubReturnDelivery = async () => {
-  await rabbit.publish();
-};
-
-const pubLogDelivery = async () => {
-  await rabbit.publish();
+/**
+ * @param {string} invoiceCode
+ * @param {Date} publishedAt
+ * @param {DeliveryItem[]} items
+ */
+const pubLogDelivery = async (invoiceCode, publishedAt, items) => {
+  await rabbit.publish(
+    /** @type {DeliveryLogPublish} */
+    ({ invoiceCode, publishedAt, items }),
+    { routingKey: routings.DELIVERY_LOG },
+  );
 };
 
 /**
@@ -81,6 +111,20 @@ const pubLogDelivery = async () => {
  * @property {string} rxQty
  * @property {string} plan
  * @property {string} patPay
+ * @property {string} refills
+ * @property {string} patientID
+ * @property {string} patientFirstName
+ * @property {string} patientLastName
+ * @property {string} patientDOB
+ *
+ * @typedef {DeliveryItem & {
+ * invoiceCode?: string,
+ * updatedAt: Date
+ * }} DeliveryItemPublish
+ * @typedef {Object} DeliveryLogPublish
+ * @property {string} invoiceCode
+ * @property {string | Date} publishedAt
+ * @property {DeliveryItem[]} items
  *
  * @typedef {Object} DeliveryLogItem
  * @property {number} version
@@ -115,6 +159,24 @@ const getActiveStationIdByCode = async (invoiceCode) => {
   const station = await getStationByCode(invoiceCode);
   if (!station.active) throw E.stationNotActive();
   return station._id.toString();
+};
+
+/**
+ * @param {string} dRxRxId
+ * @returns {Promise<DeliveryItem>}
+ */
+const findDeliveryItem = async (dRxRxId) => {
+  let item = cache.getItem(dRxRxId);
+  if (!item) {
+    const rx = await dRxRepo.findRxById(dRxRxId);
+    if (!rx) throw E.rxNotFound();
+    const patient = await dRxRepo.findPatientById(rx.patient.toString());
+    let plan;
+    if (rx.plan) plan = await dRxRepo.findPlanById(rx.plan.toString());
+    item = mapDeliveryItem(rx, patient, plan);
+    cache.setItem(dRxRxId, item);
+  }
+  return item;
 };
 
 /**
@@ -338,6 +400,11 @@ const mapDeliveryItem = (rx, patient, plan) => ({
   rxQty: rx.rxQty ?? "",
   plan: plan ? (plan.planName ?? plan.planID) : "",
   patPay: rx.patPay ?? "",
+  refills: rx.refills ?? "",
+  patientID: patient.patientID,
+  patientFirstName: patient.patientFirstName,
+  patientLastName: patient.patientLastName,
+  patientDOB: patient.patientDOB ?? "",
 });
 
 /**
@@ -373,17 +440,17 @@ exports.upsertRxWithQr = async (qr, invoiceCode) => {
   const qrData = decodeQr(qr);
   const stationId = await getActiveStationIdByCode(invoiceCode);
   qrData.deliveryStation = stationId;
-  qrData.deliveredDate = new Date();
+  qrData.deliveryDate = new Date();
   let exRx = await dRxRepo.findRxByRxID(qrData.rxID);
 
   const rx = await upsertRx(qrData);
-  delItemOnStageCache(
-    rx._id.toString(),
-    exRx?.deliveryStation?.toString(),
-    stationId,
-  );
 
-  // publish mq
+  const id = rx._id.toString();
+
+  delItemOnStageCache(id, exRx?.deliveryStation?.toString(), stationId);
+
+  pubDeliveryItem(id, invoiceCode).catch(() => {});
+
   return rx;
 };
 
@@ -397,10 +464,15 @@ const setDelivery = async (dRxRxId, version, invoiceCode) => {
   let stationId;
   if (invoiceCode) stationId = await getActiveStationIdByCode(invoiceCode);
   const exStationId = await dRxRepo.setDelivery(dRxRxId, version, stationId);
+
   delItemOnStageCache(dRxRxId, exStationId, stationId);
 
-  // publish mq
+  invoiceCode
+    ? pubDeliveryItem(dRxRxId, invoiceCode).catch(() => {})
+    : pubDeliveryCancel(dRxRxId).catch(() => {});
 };
+
+// exports.setDeliveries = async () => {};
 
 /**
  * @param {string} dRxRxId
@@ -417,9 +489,10 @@ exports.cancelDelivery = async (dRxRxId, version) =>
  */
 exports.returnDelivery = async (dRxRxId, version) => {
   const rx = await dRxRepo.returnDelivery(dRxRxId, version);
+
   cache.delItem(dRxRxId);
 
-  // publish mq
+  pubDeliveryReturn(dRxRxId).catch(() => {});
 
   return rx;
 };
@@ -475,6 +548,6 @@ exports.createLog = async (invoiceCode, items) => {
   }
   delLogItemsCache(stationId, realItems);
 
-  //publish mq
+  pubLogDelivery(invoiceCode, day.toDate(), realItems).catch(() => {});
   return log;
 };

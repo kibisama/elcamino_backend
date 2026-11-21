@@ -20,6 +20,10 @@ exports.EXCHANGES = Object.freeze({
 
 exports.ROUTINGS = Object.freeze({
   DLQ: "backend_dlq",
+  DELIVERY_ITEM: "delivery.item",
+  DELIVERY_CANCEL: "delivery.cancel",
+  DELIVERY_RETURN: "delivery.return",
+  DELIVERY_LOG: "delivery.log",
 });
 
 exports.PUBLISH_CONFIRM_TIMEOUT_MS = 10_000;

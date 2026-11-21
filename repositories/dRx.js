@@ -209,6 +209,16 @@ exports.findRxsByRxNumber = async (rxNumber) =>
   await DRxRx.find({ rxNumber }).sort({ rxDate: -1 }).lean();
 
 /**
+ * @param {string | ObjectId} id
+ * @returns {Promise<DRxRx.DRxRxLean>}
+ */
+exports.findRxById = async (id) => {
+  const rx = await DRxRx.findById(id).lean();
+  if (!rx) throw E.rxNotFound();
+  return rx;
+};
+
+/**
  * @param {string[]} ids
  * @returns {Promise<DRxRx.DRxRxLean[]>}
  */

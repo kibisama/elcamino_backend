@@ -92,7 +92,7 @@ module.exports = mongoose.model("DRx Rx", digitalRxSchema);
  * }} PopulatedDrxRxLean
  * @typedef {Omit<DRxRxSchema, "rxDate" | "patient" | "plan" | "createdAt" | "updatedAt" |
  * "deliveryStation" | "deliveryDate" | "deliveryLog" | "returnDates" | "logHistory"> &
- * Partial<{ rxDate: string, deliveryStation: string, deliveryDate: string, deliveryLog: string }> &
+ * Partial<{ rxDate: string, deliveryStation: string, deliveryDate: string | Date, deliveryLog: string }> &
  * Partial<Pick<DRxRxSchema, "returnDates" | "logHistory">> &
  * import("./dRxPatient").DRxPatientSchema &
  * Partial<import("./dRxPlan").DRxPlanSchema>} DRxDto
