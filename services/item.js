@@ -3,6 +3,8 @@ const dayjs = require("dayjs");
 const customParseFormat = require("dayjs/plugin/customParseFormat");
 dayjs.extend(customParseFormat);
 const { itemRepo } = require("../repositories");
+const rabbit = require("../utils/rabbit");
+const { routings } = rabbit;
 
 /**
  * @param {string} exp
@@ -43,8 +45,14 @@ const validateExp = (exp) => {
 
 /**
  * @param {DataMatrix} dm
+ * @returns {Promise<import("../models/item").ItemLean>}
  */
 exports.fillItem = async (dm) => {
-  const item = await itemRepo.fillItem();
+  const dmWithDate = dmToDmWithDate(dm);
+  const item = await itemRepo.fillItem(dmWithDate);
+
+  rabbit.publish(item, { routingKey: routings.ITEM_FILLED }).catch(() => {});
+
   validateExp(dm.exp);
+  return item;
 };

@@ -3,6 +3,7 @@ const Item = require("../models/item");
 
 /**
  * @param {import("../services/item").DataMatrixWithDate} dm
+ * @returns {Promise<Item.ItemLean>}
  */
 exports.fillItem = async ({ gtin, sn, lot, exp }) =>
   await Item.findOneAndUpdate(
