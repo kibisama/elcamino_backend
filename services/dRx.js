@@ -75,7 +75,7 @@ const _isEqual = (keys, original, target) => {
 const validateDto = (dto) => {
   switch (true) {
     case !dto.patientID:
-    case dto.deliveryStation && !(dto.deliveredDate instanceof Date):
+    case dto.deliveryStation && !(dto.deliveryDate instanceof Date):
       throw E.invalidParam();
   }
 };

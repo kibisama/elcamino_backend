@@ -74,6 +74,14 @@ exports.createDeliveryLogSchema = z.object({
     .min(1),
 });
 
+exports.postPickupSchema = z.object({
+  date: z.string(),
+  items: z.array(z.string()),
+  relation: z.enum(["self", "ff", "gc", "other"]),
+  canvas: z.string(),
+  notes: z.string(),
+});
+
 /**
  * @typedef {z.infer<exports.updateSettingSchema>} UpdateSettingInput
  * @typedef {z.infer<exports.createStationSchema>} CreateStationInput

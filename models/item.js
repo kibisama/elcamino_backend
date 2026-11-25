@@ -11,16 +11,6 @@ const itemSchema = new mongoose.Schema({
   lot: { type: String, required: true },
   sn: { type: String, required: true },
   exp: { type: Date, required: true },
-
-  cost: String,
-
-  dateReceived: Date,
-  // source: { type: mongoose.Schema.Types.ObjectId, ref: "" },
-  // invoiceRef: String,
-
-  dateFilled: { type: Date, index: true },
-  dateReversed: Date,
-  dateReturned: Date,
 });
 
 itemSchema.index({ gtin: 1, sn: 1 }, { unique: true });

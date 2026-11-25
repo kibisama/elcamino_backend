@@ -43,16 +43,16 @@ const validateExp = (exp) => {
  * }} DataMatrixWithDate
  */
 
-/**
- * @param {DataMatrix} dm
- * @returns {Promise<import("../models/item").ItemLean>}
- */
-exports.fillItem = async (dm) => {
-  const dmWithDate = dmToDmWithDate(dm);
-  const item = await itemRepo.fillItem(dmWithDate);
+// /**
+//  * @param {DataMatrix} dm
+//  * @returns {Promise<import("../models/item").ItemLean>}
+//  */
+// exports.fillItem = async (dm) => {
+//   const dmWithDate = dmToDmWithDate(dm);
+//   const item = await itemRepo.fillItem(dmWithDate);
 
-  rabbit.publish(item, { routingKey: routings.ITEM_FILLED }).catch(() => {});
+//   rabbit.publish(item, { routingKey: routings.ITEM_FILLED }).catch(() => {});
 
-  validateExp(dm.exp);
-  return item;
-};
+//   validateExp(dm.exp);
+//   return item;
+// };

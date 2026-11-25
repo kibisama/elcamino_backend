@@ -1,5 +1,5 @@
 // ==========================================
-// Delivery Log
+// Delivery
 // ==========================================
 exports.DELIVERY_LOG_STATUS = /** @type {const} */ ([
   "CREATED",
@@ -39,6 +39,24 @@ exports.DRX_BRAND_OR_GENERIC = /** @type {const} */ ([
   "N/A",
 ]);
 exports.DRX_DRUG_DEA = /** @type {const} */ (["0", "1", "2", "3", "4", "5"]);
+
+// ==========================================
+// Inventory
+// ==========================================
+
+exports.INVENTORY_EVENT_TYPES = /** @type {const} */ ([
+  "RECEIVED",
+  "FILLED",
+  "RETURNED",
+]);
+
+exports.PACKAGE_IDENTIFIER_TYPES = /** @type {const} */ ([
+  "GTIN",
+  "NDC10",
+  "NDC11",
+  "UPC-A",
+  "UPC-E",
+]);
 
 /**
  * @typedef {exports.DRX_RX_STATUS[number]} RxStatus
